@@ -1,0 +1,73 @@
+import pandas as pd
+import numpy as np
+
+df = pd.read_excel("sheet1.xlsx")
+df["Title2"] = df["Title2"].fillna("")
+
+import re
+def normalize_text(text):
+    text = text.lower()  # Küçük harfe çevir
+    text = re.sub(r'\(.*?\)', '', text)  # Parantez içindekileri kaldır
+    text = text.strip()  # Boşlukları temizle
+    return text
+
+
+def levenshtein_distance(str1, str2):
+    len_str1 = len(str1) + 1
+    len_str2 = len(str2) + 1
+
+    # Matris oluştur
+    matrix = np.zeros((len_str1, len_str2))
+
+    # İlk satır ve sütunu doldur
+    for i in range(len_str1):
+        matrix[i][0] = i
+    for j in range(len_str2):
+        matrix[0][j] = j
+
+    # Matris üzerinden karşılaştırma yap
+    for i in range(1, len_str1):
+        for j in range(1, len_str2):
+            if str1[i-1] == str2[j-1]:
+                cost = 0
+            else:
+                cost = 1
+            matrix[i][j] = min(matrix[i-1][j] + 1,      # Silme
+                               matrix[i][j-1] + 1,      # Ekleme
+                               matrix[i-1][j-1] + cost) # Değiştirme
+
+    # Levenshtein mesafesi matriksin son köşesinde olur
+    return matrix[len_str1 - 1, len_str2 - 1]
+
+# Levenshtein mesafesiyle benzerlik yüzdesi hesaplayan fonksiyon
+def levenshtein_similarity(str1, str2):
+    lev_dist = levenshtein_distance(str1, str2)
+    max_len = max(len(str1), len(str2))
+    similarity_percentage = (1 - lev_dist / max_len) * 100
+    return similarity_percentage
+
+
+
+similarities = []
+
+for index2, row2 in df.iterrows():
+    normalized_title2 = normalize_text(row2['Title2'])
+    best_similarity = 0
+    for index1, row1 in df.iterrows():
+        normalized_title1 = normalize_text(row1['Title1'])
+        similarity = levenshtein_similarity(normalized_title1, normalized_title2)
+        if similarity > best_similarity:
+            best_similarity = similarity
+    similarities.append(best_similarity)
+
+# Benzerlik yüzdelerini yeni bir sütun olarak ekle
+df['Title2 Similarity (%)'] = similarities
+
+# Sonucu görüntüleyin
+print(df)
+
+# Excel dosyasına çıktı almak
+output_file = 'benzerlik_sonuclari.xlsx'  # Dosya adını belirleyin
+df.to_excel(output_file, index=False)  # index=False, satır numaralarını kaydetmemek için
+
+print(f"Sonuçlar '{output_file}' dosyasına kaydedildi.")
